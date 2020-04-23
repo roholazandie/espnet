@@ -1,0 +1,10 @@
+{
+  "trans_type": "phn",
+  "dict_path": "./downloads/en/fastspeech/data/lang_1phn/phn_train_no_dev_units.txt",
+  "model_path": "./downloads/en/fastspeech/exp/phn_train_no_dev_pytorch_train_tacotron2.v3_fastspeech.v4.single/results/model.last1.avg.best",
+  "vocoder_path": "downloads/en/parallel_wavegan/ljspeech.parallel_wavegan.v2/checkpoint-400000steps.pkl",
+  "vocoder_conf": "downloads/en/parallel_wavegan/ljspeech.parallel_wavegan.v2/config.yml",
+  "phonemes_file": "phonemes_result.txt",
+  "voice_file": "sample.wav",
+  "device": "cpu"
+}
