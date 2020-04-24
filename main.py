@@ -101,7 +101,7 @@ with torch.no_grad():
     start = time.time()
     x, phonemes = frontend(input_text)
     c, d_out, _ = model.inference(x, inference_args)
-    durations = d_out.squeeze(0).numpy().tolist()
+    durations = d_out.cpu().squeeze(0).numpy().tolist()
     c = pad_fn(c.unsqueeze(0).transpose(2, 1)).to(device)
     xx = (c,)
     if use_noise_input:
