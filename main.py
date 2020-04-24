@@ -15,7 +15,11 @@ import parallel_wavegan.models
 import nltk
 import time
 import argparse
+from flask import Flask, request
+import ast
 
+
+app = Flask(__name__)
 
 esp_config = ESPNetConfig.from_json_file("config.json")
 
@@ -84,46 +88,63 @@ nltk.download('punkt')
 print("Now ready to synthesize!")
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-        "--input_text",
-        default=None,
-        type=str,
-        required=True
-    )
+# parser = argparse.ArgumentParser()
+# parser.add_argument(
+#         "--input_text",
+#         default=None,
+#         type=str,
+#         required=True
+#     )
 
-args = parser.parse_args()
 
-input_text = args.input_text
-pad_fn = torch.nn.ReplicationPad1d(config["generator_params"].get("aux_context_window", 0))
-use_noise_input = vocoder_class == "ParallelWaveGANGenerator"
-with torch.no_grad():
-    start = time.time()
-    x, phonemes = frontend(input_text)
-    c, d_out, _ = model.inference(x, inference_args)
-    durations = d_out.cpu().squeeze(0).numpy().tolist()
-    c = pad_fn(c.unsqueeze(0).transpose(2, 1)).to(device)
-    xx = (c,)
-    if use_noise_input:
-        z_size = (1, 1, (c.size(2) - sum(pad_fn.padding)) * config["hop_size"])
-        z = torch.randn(z_size).to(device)
-        xx = (z,) + xx
-    y = vocoder(*xx).view(-1)
-rtf = (time.time() - start) / (len(y) / config["sampling_rate"])
-print(f"RTF = {rtf:5f}")
 
-process_time = (time.time() - start)
-print(f"process_time = {process_time}")
+def tts(input_text):
+    pad_fn = torch.nn.ReplicationPad1d(config["generator_params"].get("aux_context_window", 0))
+    use_noise_input = vocoder_class == "ParallelWaveGANGenerator"
+    with torch.no_grad():
+        start = time.time()
+        x, phonemes = frontend(input_text)
+        c, d_out, _ = model.inference(x, inference_args)
+        durations = d_out.cpu().squeeze(0).numpy().tolist()
+        c = pad_fn(c.unsqueeze(0).transpose(2, 1)).to(device)
+        xx = (c,)
+        if use_noise_input:
+            z_size = (1, 1, (c.size(2) - sum(pad_fn.padding)) * config["hop_size"])
+            z = torch.randn(z_size).to(device)
+            xx = (z,) + xx
+        y = vocoder(*xx).view(-1)
+    rtf = (time.time() - start) / (len(y) / config["sampling_rate"])
+    print(f"RTF = {rtf:5f}")
 
-audio_duration = (len(y)/config["sampling_rate"])*1000
+    process_time = (time.time() - start)
+    print(f"process_time = {process_time}")
 
-unit_duration = audio_duration/sum(durations)
+    audio_duration = (len(y)/config["sampling_rate"])*1000
 
-ends = np.cumsum(durations) * unit_duration
-starts = [0] + ends[:-1].tolist()
+    unit_duration = audio_duration/sum(durations)
 
-with open(esp_config.phonemes_file, 'w') as file_writer:
-    for phoneme, start, end in zip(phonemes, starts, ends):
-        file_writer.write(phoneme + "\t" + str(start) + "\t" + str(end) + "\n")
+    ends = np.cumsum(durations) * unit_duration
+    starts = [0] + ends[:-1].tolist()
 
-write(esp_config.voice_file, config["sampling_rate"], y.view(-1).cpu().numpy())
+    lines = []
+    with open(esp_config.phonemes_file, 'w') as file_writer:
+        for phoneme, start, end in zip(phonemes, starts, ends):
+            line = phoneme + "\t" + str(start) + "\t" + str(end) + "\n"
+            file_writer.write(line)
+            lines.append(line)
+
+    write(esp_config.voice_file, config["sampling_rate"], y.view(-1).cpu().numpy())
+
+    return " ".join(lines)
+
+
+
+
+@app.route('/api/tts', methods=['POST'])
+def tts_api():
+    data = ast.literal_eval(request.data.decode("utf-8"))
+    return tts(data["input_text"])
+
+
+if __name__ == '__main__':
+    app.run(debug=True, port=esp_config.port)

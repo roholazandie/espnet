@@ -6,5 +6,6 @@
   "vocoder_conf": "downloads/en/parallel_wavegan/ljspeech.parallel_wavegan.v2/config.yml",
   "phonemes_file": "phonemes_result.txt",
   "voice_file": "sample.wav",
-  "device": "cpu"
+  "port": 3333,
+  "device": "cuda"
 }

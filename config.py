@@ -11,6 +11,7 @@ class ESPNetConfig:
                  vocoder_conf="",
                  phonemes_file="",
                  voice_file="",
+                 port="",
                  device="cpu",
                  ):
         self.trans_type = trans_type
@@ -21,6 +22,7 @@ class ESPNetConfig:
         self.phonemes_file = phonemes_file
         self.voice_file = voice_file
         self.device = device
+        self.port = port
 
     @classmethod
     def from_dict(cls, json_object):
