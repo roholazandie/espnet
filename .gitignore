@@ -61,5 +61,6 @@ tools/open_jtalk*
 tools/pyopenjtalk*
 downloads
 *.wav
+outputs/
 
 phonemes_result.txt

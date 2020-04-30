@@ -9,8 +9,8 @@ class ESPNetConfig:
                  model_path="",
                  vocoder_path="",
                  vocoder_conf="",
-                 phonemes_file="",
-                 voice_file="",
+                 phonemes_dir="",
+                 voice_dir="",
                  port="",
                  device="cpu",
                  ):
@@ -19,8 +19,8 @@ class ESPNetConfig:
         self.model_path = model_path
         self.vocoder_path = vocoder_path
         self.vocoder_conf = vocoder_conf
-        self.phonemes_file = phonemes_file
-        self.voice_file = voice_file
+        self.phonemes_dir = phonemes_dir
+        self.voice_dir = voice_dir
         self.device = device
         self.port = port
 

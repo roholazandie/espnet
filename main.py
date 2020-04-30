@@ -16,8 +16,8 @@ import nltk
 import time
 import argparse
 from flask import Flask, request
+import uuid
 import ast
-
 
 app = Flask(__name__)
 
@@ -29,7 +29,6 @@ sys.path.append("espnet")
 
 # define device
 device = torch.device(esp_config.device)
-
 
 idim, odim, train_args = get_model_conf(esp_config.model_path)
 model_class = dynamic_import(train_args.model_module)
@@ -84,21 +83,29 @@ def frontend(text):
     phonemes = charseq + ["<eos>"]
     return torch.LongTensor(idseq).view(-1).to(device), phonemes
 
+
 nltk.download('punkt')
 print("Now ready to synthesize!")
 
 
-# parser = argparse.ArgumentParser()
-# parser.add_argument(
-#         "--input_text",
-#         default=None,
-#         type=str,
-#         required=True
-#     )
+cmu_phonemes = ["F", "M", "N", "L", "D", "B", "HH", "P", "T", "S", "R", "AE", "W", "Z", "V", "G", "NG", "DH", "AX",
+                "AA", "AH", "AO", "AW", "AXR", "AY", "CH", "EH", "ER", "EY", "IH", "IX", "IY", "JH", "OW", "OY", "SH",
+                "TH", "UH", "UW", "Y", "TS", "R", "R", "AH", "AA", "SIL", "IY", "L", "L", "R", "IH", ]
+
+def regulate_phoneme_duration(phoneme, start, end):
+    for char in ['0', '1', '2', '3']:
+        if char in phoneme:
+            phoneme = phoneme.replace(char, '')
+    if phoneme not in cmu_phonemes:
+        phoneme = "SIL"
+
+    start = int(float(start) / 10) + 10
+    end = int(float(end) / 10) + 10
+    return phoneme, start, end
 
 
 
-def tts(input_text):
+def tts(input_text, out_file_name):
     pad_fn = torch.nn.ReplicationPad1d(config["generator_params"].get("aux_context_window", 0))
     use_noise_input = vocoder_class == "ParallelWaveGANGenerator"
     with torch.no_grad():
@@ -119,32 +126,64 @@ def tts(input_text):
     process_time = (time.time() - start)
     print(f"process_time = {process_time}")
 
-    audio_duration = (len(y)/config["sampling_rate"])*1000
+    audio_duration = (len(y) / config["sampling_rate"]) * 1000
 
-    unit_duration = audio_duration/sum(durations)
+    unit_duration = audio_duration / sum(durations)
 
     ends = np.cumsum(durations) * unit_duration
     starts = [0] + ends[:-1].tolist()
 
     lines = []
-    with open(esp_config.phonemes_file, 'w') as file_writer:
+    phoneme_out = {"phonemes": [], "start": [], "end": []}
+    phonemes_file = os.path.join(esp_config.phonemes_dir, out_file_name+".txt")
+    with open(phonemes_file, 'w') as file_writer:
         for phoneme, start, end in zip(phonemes, starts, ends):
+            phoneme, start, end = regulate_phoneme_duration(phoneme, start, end)
             line = phoneme + "\t" + str(start) + "\t" + str(end) + "\n"
             file_writer.write(line)
             lines.append(line)
+            phoneme_out["phonemes"].append(phoneme)
+            phoneme_out["start"].append(start)
+            phoneme_out["end"].append(end)
 
-    write(esp_config.voice_file, config["sampling_rate"], y.view(-1).cpu().numpy())
+    wav_file = os.path.join(esp_config.voice_dir, out_file_name+".wav")
+    write(wav_file, config["sampling_rate"], y.view(-1).cpu().numpy())
 
-    return " ".join(lines)
-
-
+    return {"phonemes": phoneme_out,
+            "phoneme_file": phonemes_file,
+            "wav_file": wav_file}
 
 
 @app.route('/api/tts', methods=['POST'])
 def tts_api():
     data = ast.literal_eval(request.data.decode("utf-8"))
-    return tts(data["input_text"])
+    unique_name = str(uuid.uuid4())
+    return tts(data["input_text"], out_file_name=unique_name)
+
+
+@app.route('/api/delete')
+def delete_api():
+    try:
+        wav_filelist = [f for f in os.listdir(esp_config.voice_dir) if f.endswith(".wav")]
+        phonemes_filelist = [f for f in os.listdir(esp_config.phonemes_dir) if f.endswith(".txt")]
+        for f in wav_filelist:
+            os.remove(os.path.join(esp_config.voice_dir, f))
+
+        for f in phonemes_filelist:
+            os.remove(os.path.join(esp_config.phonemes_dir, f))
+
+        return "success"
+    except Exception as excep:
+        return str(excep)
+
+
 
 
 if __name__ == '__main__':
     app.run(debug=True, port=esp_config.port)
+
+# ask a question
+#curl --header "Content-Type: application/json" --request POST --data '{"input_text":"This is an awesome example."}' http://localhost:3333/api/tts
+
+# delete
+#curl --header "Content-Type: application/json"  http://localhost:3333/api/delete
