@@ -15,7 +15,7 @@ import parallel_wavegan.models
 import nltk
 import time
 import argparse
-from flask import Flask, request
+from flask import Flask, request, session, send_file, Response
 import uuid
 import ast
 
@@ -139,7 +139,7 @@ def tts(input_text, out_file_name):
     with open(phonemes_file, 'w') as file_writer:
         for phoneme, start, end in zip(phonemes, starts, ends):
             phoneme, start, end = regulate_phoneme_duration(phoneme, start, end)
-            line = phoneme + "\t" + str(start) + "\t" + str(end) + "\n"
+            line = "{:4d} 0    0    0    0  {:4d} {:4s} 0.0000 ".format(start, end, phoneme) +'\n'
             file_writer.write(line)
             lines.append(line)
             phoneme_out["phonemes"].append(phoneme)
@@ -149,20 +149,40 @@ def tts(input_text, out_file_name):
     wav_file = os.path.join(esp_config.voice_dir, out_file_name+".wav")
     write(wav_file, config["sampling_rate"], y.view(-1).cpu().numpy())
 
-    return {"phonemes": phoneme_out,
-            "phoneme_file": phonemes_file,
-            "wav_file": wav_file}
+    return {"phonemes": phoneme_out}
 
 
 @app.route('/api/tts', methods=['POST'])
 def tts_api():
     data = ast.literal_eval(request.data.decode("utf-8"))
     unique_name = str(uuid.uuid4())
-    return tts(data["input_text"], out_file_name=unique_name)
+    response = tts(data["input_text"], out_file_name=unique_name)
+    response["filename"] = unique_name
+    return response
 
+@app.route('/api/download', methods=['POST', 'GET'])
+def download():
+    try:
+        data = ast.literal_eval(request.data.decode("utf-8"))
+        wav_file = os.path.join(esp_config.voice_dir, data["filename"]+".wav")
+        return send_file(wav_file)
+    except Exception as e:
+        return str(e)
 
-@app.route('/api/delete')
+@app.route('/api/delete', methods=['POST', 'GET'])
 def delete_api():
+    try:
+        data = ast.literal_eval(request.data.decode("utf-8"))
+        os.remove(os.path.join(esp_config.voice_dir, data["filename"]+".wav"))
+        os.remove(os.path.join(esp_config.phonemes_dir, data["filename"]+".txt"))
+
+        return "success"
+    except Exception as excep:
+        return str(excep)
+
+
+@app.route('/api/delete_all')
+def delete_all_api():
     try:
         wav_filelist = [f for f in os.listdir(esp_config.voice_dir) if f.endswith(".wav")]
         phonemes_filelist = [f for f in os.listdir(esp_config.phonemes_dir) if f.endswith(".txt")]
@@ -177,9 +197,18 @@ def delete_api():
         return str(excep)
 
 
+# import json
+# from requests_toolbelt import MultipartEncoder
+#
+# @app.route('/api/download', methods=['GET', 'POST'])
+# def download():
+#     m = MultipartEncoder({"document": "this is a test", "file": ('filename', open('/home/rohola/codes/espnet/outputs/wav_files/0e550b42-9540-4761-a582-76a0925d8663.wav', 'rb'), 'text/plain')})
+#     return Response(m.to_string(), mimetype=m.content_type)
 
 
 if __name__ == '__main__':
+    app.secret_key = 'fhcbnmblhsadf7ew8qw4q'
+    app.config['SESSION_TYPE'] = 'filesystem'
     app.run(debug=True, port=esp_config.port)
 
 # ask a question
