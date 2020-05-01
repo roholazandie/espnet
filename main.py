@@ -15,7 +15,7 @@ import parallel_wavegan.models
 import nltk
 import time
 import argparse
-from flask import Flask, request, session, send_file, Response
+from flask import Flask, request, session, send_file, Response, after_this_request
 import uuid
 import ast
 
@@ -152,6 +152,7 @@ def tts(input_text, out_file_name):
     return {"phonemes": " ".join(lines)}
 
 
+
 @app.route('/api/tts', methods=['POST'])
 def tts_api():
     data = ast.literal_eval(request.data.decode("utf-8"))
@@ -160,12 +161,39 @@ def tts_api():
     response["filename"] = unique_name
     return response
 
+
 @app.route('/api/download', methods=['POST', 'GET'])
 def download():
     try:
         data = ast.literal_eval(request.data.decode("utf-8"))
         wav_file = os.path.join(esp_config.voice_dir, data["filename"]+".wav")
+        phoneme_file = os.path.join(esp_config.phonemes_dir, data["filename"] + ".txt")
+        @after_this_request
+        def add_header(response):
+            os.remove(wav_file)
+            os.remove(phoneme_file)
+            return response
+
         return send_file(wav_file)
+
+        # data = ast.literal_eval(request.data.decode("utf-8"))
+        # wav_file = os.path.join(esp_config.voice_dir, data["filename"]+".wav")
+        #
+        # return_data = io.BytesIO()
+        # with open(wav_file, 'rb') as fo:
+        #     return_data.write(fo.read())
+        # # (after writing, cursor will be at last byte, so move it to start)
+        # return_data.seek(0)
+        #
+        # os.remove(wav_file)
+        #
+        # return send_file(return_data)
+
+
+
+
+
+
     except Exception as e:
         return str(e)
 
