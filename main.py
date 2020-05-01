@@ -214,5 +214,11 @@ if __name__ == '__main__':
 # ask a question
 #curl --header "Content-Type: application/json" --request POST --data '{"input_text":"This is an awesome example."}' http://localhost:3333/api/tts
 
-# delete
-#curl --header "Content-Type: application/json"  http://localhost:3333/api/delete
+# download
+# curl -o output.wav --header "Content-Type: application/json" --request POST --data '{"filename":"a1b8f97d-97c5-40c8-acd4-cbadca67abdf"}' http://localhost:3333/api/download
+
+#delete
+#curl --header "Content-Type: application/json" --request POST --data '{"filename":"a1b8f97d-97c5-40c8-acd4-cbadca67abdf"}' http://localhost:3333/api/delete
+
+# delete all
+#curl --header "Content-Type: application/json" http://localhost:3333/api/delete_all
