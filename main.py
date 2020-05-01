@@ -149,7 +149,7 @@ def tts(input_text, out_file_name):
     wav_file = os.path.join(esp_config.voice_dir, out_file_name+".wav")
     write(wav_file, config["sampling_rate"], y.view(-1).cpu().numpy())
 
-    return {"phonemes": phoneme_out}
+    return {"phonemes": " ".join(lines)}
 
 
 @app.route('/api/tts', methods=['POST'])
